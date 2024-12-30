@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>留言板</title>
+    <script src="/static/js/vue.js"></script>
+    <!-- Tailwind -->
+    <script src="/static/js/tailwind.min.js"></script>
+    <link href="/static/js/tailwind.css" rel="stylesheet">
+    <!-- Quill 主题样式 -->
+    <link href="/static/js/quill.snow.css" rel="stylesheet">
+    <!-- Quill 编辑器 -->
+    <script src="/static/js/quill.js"></script>
+    <style>
+        [v-cloak] {
+            display: none;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.25rem;
+        }
+        .message-content img {
+            max-width: 100%;
+            height: auto;
+        }
+        .ql-editor {
+            min-height: 200px;
+            background-color: white;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .ql-container {
+            font-size: 16px;
+            border-bottom-left-radius: 0.375rem;
+            border-bottom-right-radius: 0.375rem;
+            border: none;
+        }
+        .ql-toolbar {
+            border-top-left-radius: 0.375rem;
+            border-top-right-radius: 0.375rem;
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-bottom: none;
+        }
+        .ql-container.ql-snow {
+            border: 1px solid #e5e7eb;
+            border-top: none;
+        }
+        .message-content {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .message-content p {
+            margin-bottom: 1em;
+        }
+        .message-content h1, .message-content h2, .message-content h3 {
+            margin: 1em 0 0.5em;
+            font-weight: bold;
+        }
+        .message-content h1 { font-size: 2em; }
+        .message-content h2 { font-size: 1.5em; }
+        .message-content h3 { font-size: 1.17em; }
+        .message-content ul, .message-content ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        .message-content ul { list-style-type: disc; }
+        .message-content ol { list-style-type: decimal; }
+        .message-content blockquote {
+            border-left: 4px solid #ccc;
+            margin: 1em 0;
+            padding-left: 1em;
+            color: #666;
+        }
+        .message-content pre {
+            background-color: #f8f8f8;
+            padding: 1em;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .message-content code {
+            font-family: monospace;
+            background-color: #f8f8f8;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="app" v-cloak class="container mx-auto px-4 py-8">
+        <!-- 登录/注册表单 -->
+        <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8 mb-8">
+            <div class="flex justify-center space-x-4 mb-6">
+                <button 
+                    @click="showLoginForm = true" 
+                    :class="{'text-indigo-600 border-b-2 border-indigo-600': showLoginForm, 'text-gray-500 hover:text-gray-700': !showLoginForm}"
+                    class="pb-2 font-medium focus:outline-none transition-colors duration-200"
+                >
+                    登录
+                </button>
+                <button 
+                    @click="showLoginForm = false" 
+                    :class="{'text-indigo-600 border-b-2 border-indigo-600': !showLoginForm, 'text-gray-500 hover:text-gray-700': showLoginForm}"
+                    class="pb-2 font-medium focus:outline-none transition-colors duration-200"
+                >
+                    注册
+                </button>
+            </div>
+
+            <!-- 登录表单 -->
+            <form v-if="showLoginForm" @submit.prevent="login" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                    <input 
+                        type="text" 
+                        v-model="loginForm.username" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                    <input 
+                        type="password" 
+                        v-model="loginForm.password" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                </div>
+                <p v-if="loginError" class="text-red-500 text-sm">{{ loginError }}</p>
+                <button 
+                    type="submit" 
+                    class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
+                >
+                    登录
+                </button>
+            </form>
+
+            <!-- 注册表单 -->
+            <form v-else @submit.prevent="register" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                    <input 
+                        type="text" 
+                        v-model="registerForm.username" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                    <input 
+                        type="password" 
+                        v-model="registerForm.password" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                </div>
+                <p v-if="registerError" class="text-red-500 text-sm">{{ registerError }}</p>
+                <button 
+                    type="submit" 
+                    class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
+                >
+                    注册
+                </button>
+            </form>
+        </div>
+
+        <!-- 留言板主界面 -->
+        <div v-else>
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-2xl font-bold text-gray-900">欢迎, {{ username }}!</h1>
+                <button 
+                    @click="logout" 
+                    class="bg-white text-gray-700 px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
+                >
+                    登出
+                </button>
+            </div>
+
+            <!-- 发送留言 -->
+            <div v-if="isLoggedIn" class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">选择分类</label>
+                    <select 
+                        v-model="selectedCategory"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    >
+                        <option v-for="(name, value) in categories" :key="value" :value="value">{{ name }}</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">留言内容</label>
+                    <div ref="editor" class="min-h-[200px] bg-white"></div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <p v-if="messageError" class="text-red-500 text-sm">{{ messageError }}</p>
+                    <button 
+                        @click="sendMessage" 
+                        class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
+                    >
+                        发送留言
+                    </button>
+                </div>
+            </div>
+
+            <!-- 留言列表 -->
+            <div class="space-y-4">
+                <div class="bg-white rounded-lg shadow-md p-4 mb-4">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">筛选留言</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+                            <select v-model="filters.category" @change="applyFilters" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                <option value="all">全部分类</option>
+                                <option v-for="(name, value) in categories" :key="value" :value="value">{{ name }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
+                            <input type="date" v-model="filters.startDate" @change="applyFilters" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
+                            <input type="date" v-model="filters.endDate" @change="applyFilters" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button @click="resetFilters" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200">重置筛选</button>
+                    </div>
+                </div>
+                <div v-for="message in filteredMessages" :key="message.id" class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-200">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center space-x-3">
+                            <!-- 用户头像 -->
+                            <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <span class="text-indigo-600 font-medium text-lg">{{ message.author[0].toUpperCase() }}</span>
+                            </div>
+                            <div>
+                                <span class="font-medium text-gray-900">{{ message.author }}</span>
+                                <div class="flex items-center space-x-2 text-sm text-gray-500">
+                                    <span>{{ formatDate(message.created_at) }}</span>
+                                    <span class="px-2 py-1 rounded-full text-xs" :class="getCategoryClass(message.category)">
+                                        {{ message.category_name }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <button 
+                            v-if="isAdmin"
+                            @click="deleteMessage(message.id)" 
+                            class="text-gray-400 hover:text-red-600 transition-colors duration-200"
+                            title="删除消息">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="message-content prose max-w-none" v-html="message.content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, onUnmounted, computed } = Vue
+
+        createApp({
+            setup() {
+                const API_BASE_URL = '/api'  // 修改为正确的 API 基础 URL
+                const isLoggedIn = ref(false)
+                const username = ref('')
+                const isAdmin = ref(false)
+                const messages = ref([])
+                const editor = ref(null)
+                const quill = ref(null)
+                const selectedCategory = ref('default')
+                const showLoginForm = ref(true)
+
+                const loginForm = ref({
+                    username: '',
+                    password: ''
+                })
+
+                const registerForm = ref({
+                    username: '',
+                    password: ''
+                })
+
+                const loginError = ref('')
+                const registerError = ref('')
+                const messageError = ref('')
+
+                // 分类列表
+                const categories = {
+                    default: '默认分类',
+                    bug: '产品故障',
+                    feature: '功能建议',
+                    other: '其他问题'
+                }
+
+                // 筛选器
+                const filters = ref({
+                    category: 'all',
+                    startDate: '',
+                    endDate: ''
+                })
+
+                // 获取筛选后的消息列表
+                const filteredMessages = computed(() => {
+                    let filtered = [...messages.value]
+
+                    // 按分类筛选
+                    if (filters.value.category !== 'all') {
+                        filtered = filtered.filter(msg => msg.category === filters.value.category)
+                    }
+
+                    // 按日期范围筛选
+                    if (filters.value.startDate) {
+                        const startDate = new Date(filters.value.startDate)
+                        filtered = filtered.filter(msg => new Date(msg.created_at) >= startDate)
+                    }
+                    if (filters.value.endDate) {
+                        const endDate = new Date(filters.value.endDate)
+                        filtered = filtered.filter(msg => new Date(msg.created_at) <= endDate)
+                    }
+
+                    return filtered
+                })
+
+                // 重置筛选器
+                const resetFilters = () => {
+                    filters.value = {
+                        category: 'all',
+                        startDate: '',
+                        endDate: ''
+                    }
+                }
+
+                // 应用筛选
+                const applyFilters = () => {
+                    // 筛选逻辑已经在 computed 属性中实现
+                }
+
+                // 格式化日期
+                const formatDate = (dateString) => {
+                    const date = new Date(dateString)
+                    return date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })
+                }
+
+                // 获取分类样式
+                const getCategoryClass = (category) => {
+                    const classes = {
+                        default: 'bg-gray-100 text-gray-800',
+                        bug: 'bg-red-100 text-red-800',
+                        feature: 'bg-green-100 text-green-800',
+                        other: 'bg-blue-100 text-blue-800'
+                    }
+                    return classes[category] || classes.default
+                }
+
+                // 检查认证状态
+                const checkAuth = async () => {
+                    const token = localStorage.getItem('token')
+                    if (token) {
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/messages`, {
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                }
+                            })
+                            
+                            if (!response.ok) {
+                                throw new Error('认证失败')
+                            }
+
+                            const data = await response.json()
+                            messages.value = data
+                            isLoggedIn.value = true
+                            username.value = localStorage.getItem('username')
+                            isAdmin.value = username.value === 'admin'
+                            
+                            // 登录验证成功后初始化编辑器
+                            setTimeout(initEditor, 100)
+                        } catch (error) {
+                            console.error('Auth check error:', error)
+                            localStorage.removeItem('token')
+                            localStorage.removeItem('username')
+                            isLoggedIn.value = false
+                            username.value = ''
+                            isAdmin.value = false
+                        }
+                    }
+                }
+
+                // 登录
+                const login = async () => {
+                    try {
+                        loginError.value = ''
+                        console.log('Attempting login with:', loginForm.value)
+
+                        const response = await fetch(`${API_BASE_URL}/login`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                username: loginForm.value.username,
+                                password: loginForm.value.password
+                            })
+                        })
+
+                        console.log('Login response status:', response.status)
+                        const data = await response.json()
+                        console.log('Login response data:', data)
+
+                        if (!response.ok) {
+                            throw new Error(data.error || '登录失败')
+                        }
+
+                        localStorage.setItem('token', data.access_token)
+                        localStorage.setItem('username', data.username)  // 保存用户名到本地存储
+                        username.value = data.username
+                        isAdmin.value = username.value === 'admin'
+                        isLoggedIn.value = true
+                        loginForm.value = { username: '', password: '' }
+                        await fetchMessages()
+                        
+                        setTimeout(initEditor, 100)
+                    } catch (error) {
+                        console.error('Login error:', error)
+                        loginError.value = error.message || '登录失败，请检查用户名和密码'
+                    }
+                }
+
+                // 注册
+                const register = async () => {
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/register`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(registerForm.value)
+                        })
+
+                        if (!response.ok) {
+                            throw new Error('注册失败')
+                        }
+
+                        const data = await response.json()
+                        alert(`注册成功！您的Access Key是: ${data.access_key}\n请保存好这个key，可用于后续登录。`)
+                        showLoginForm.value = true
+                        registerForm.value = { username: '', password: '' }
+                    } catch (error) {
+                        console.error('Register error:', error)
+                        registerError.value = error.message || '注册失败，请重试'
+                    }
+                }
+
+                // 登出
+                const logout = () => {
+                    localStorage.removeItem('token')
+                    localStorage.removeItem('username')  // 清除保存的用户名
+                    isLoggedIn.value = false
+                    username.value = ''
+                    isAdmin.value = false
+                    messages.value = []
+                    showLoginForm.value = true
+                    if (quill.value) {
+                        quill.value = null
+                    }
+                }
+
+                // 获取所有留言
+                const fetchMessages = async () => {
+                    try {
+                        const token = localStorage.getItem('token')
+                        if (!token) {
+                            throw new Error('未登录')
+                        }
+
+                        const response = await fetch(`${API_BASE_URL}/messages`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        })
+
+                        if (!response.ok) {
+                            throw new Error('获取留言失败')
+                        }
+
+                        const data = await response.json()
+                        messages.value = data
+                    } catch (error) {
+                        console.error('Fetch messages error:', error)
+                        if (error.message === '未登录') {
+                            isLoggedIn.value = false
+                            localStorage.removeItem('token')
+                        }
+                    }
+                }
+
+                // 初始化编辑器
+                const initEditor = () => {
+                    if (editor.value && !quill.value) {
+                        quill.value = new Quill(editor.value, {
+                            theme: 'snow',
+                            placeholder: '在这里输入你的留言...',
+                            modules: {
+                                toolbar: [
+                                    ['bold', 'italic', 'underline', 'strike'],
+                                    ['blockquote', 'code-block'],
+                                    [{ 'header': 1 }, { 'header': 2 }],
+                                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                    [{ 'script': 'sub'}, { 'script': 'super' }],
+                                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                                    [{ 'direction': 'rtl' }],
+                                    [{ 'size': ['small', false, 'large', 'huge'] }],
+                                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                                    [{ 'color': [] }, { 'background': [] }],
+                                    [{ 'font': [] }],
+                                    [{ 'align': [] }],
+                                    ['clean'],
+                                    ['link', 'image']
+                                ]
+                            }
+                        });
+
+                        // 添加图片上传处理
+                        const toolbar = quill.value.getModule('toolbar');
+                        toolbar.addHandler('image', () => {
+                            const input = document.createElement('input');
+                            input.setAttribute('type', 'file');
+                            input.setAttribute('accept', 'image/*');
+                            input.click();
+
+                            input.onchange = () => {
+                                const file = input.files[0];
+                                if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => {
+                                        const range = quill.value.getSelection(true);
+                                        quill.value.insertEmbed(range.index, 'image', e.target.result);
+                                    };
+                                    reader.readAsDataURL(file);
+                                }
+                            };
+                        });
+                    }
+                }
+
+                // 发送新留言
+                const sendMessage = async () => {
+                    if (!quill.value) {
+                        console.error('Editor not initialized');
+                        return;
+                    }
+                    
+                    // 直接从编辑器的 DOM 元素获取 HTML 内容
+                    const content = document.querySelector('.ql-editor').innerHTML;
+                    console.log('Raw content:', content);
+                    
+                    if (!content.trim()) {
+                        console.warn('Empty content');
+                        return;
+                    }
+
+                    try {
+                        messageError.value = '';
+                        const token = localStorage.getItem('token');
+                        console.log('Token:', token);
+
+                        const headers = {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        };
+                        
+                        if (token) {
+                            headers['Authorization'] = `Bearer ${token}`;
+                        } else {
+                            throw new Error('未登录或登录已过期');
+                        }
+
+                        console.log('Request headers:', headers);
+                        console.log('Sending request to:', `${API_BASE_URL}/messages`);
+                        
+                        const response = await fetch(`${API_BASE_URL}/messages`, {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({
+                                content: content,
+                                category: selectedCategory.value
+                            })
+                        });
+
+                        console.log('Response status:', response.status);
+                        const data = await response.json();
+                        console.log('Response data:', data);
+
+                        if (!response.ok) {
+                            throw new Error(data.error || '发送留言失败');
+                        }
+
+                        // 清空编辑器
+                        quill.value.setContents([]);
+                        // 重置分类为默认
+                        selectedCategory.value = 'default';
+                        // 重新获取消息列表
+                        await fetchMessages();
+                    } catch (error) {
+                        console.error('Send message error:', error);
+                        messageError.value = error.message || '发送失败，请重试';
+                        if (error.message.includes('认证') || error.message.includes('未认证') || error.message.includes('登录')) {
+                            localStorage.removeItem('token');
+                            isLoggedIn.value = false;
+                            username.value = '';
+                            alert('登录已过期，请重新登录');
+                        }
+                    }
+                }
+
+                // 删除留言
+                const deleteMessage = async (messageId) => {
+                    if (!confirm('确定要删除这条留言吗？')) {
+                        return
+                    }
+
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/messages/${messageId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        })
+
+                        if (!response.ok) {
+                            throw new Error('删除失败')
+                        }
+
+                        // 从列表中移除被删除的留言
+                        messages.value = messages.value.filter(msg => msg.id !== messageId)
+                    } catch (error) {
+                        console.error('Delete error:', error)
+                        alert('删除留言失败，请重试')
+                    }
+                }
+
+                // 组件挂载时检查认证状态
+                onMounted(() => {
+                    checkAuth()
+                })
+
+                return {
+                    isLoggedIn,
+                    username,
+                    isAdmin,
+                    messages,
+                    editor,
+                    quill,
+                    loginForm,
+                    registerForm,
+                    loginError,
+                    registerError,
+                    messageError,
+                    selectedCategory,
+                    categories,
+                    filters,
+                    filteredMessages,
+                    showLoginForm,
+                    login,
+                    register,
+                    logout,
+                    sendMessage,
+                    deleteMessage,
+                    formatDate,
+                    applyFilters,
+                    resetFilters,
+                    getCategoryClass
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
