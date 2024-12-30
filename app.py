@@ -99,44 +99,52 @@ def generate_secure_string(length=16):
 
 def init_db():
     """初始化数据库"""
+    db_path = 'messages.db'
     with app.app_context():
         try:
+            # 检查数据库文件是否存在
+            if os.path.exists(db_path):
+                # 检查是否有用户
+                if User.query.first() is not None:
+                    print("数据库已存在且包含用户数据，跳过初始化...")
+                    return
+                
             print("开始初始化数据库...")
-            # 删除所有表并重新创建
-            db.drop_all()
+            # 创建所有表（如果不存在）
             db.create_all()
             print("数据库表创建完成")
 
-            # 创建管理员账户
-            print("创建管理员账户...")
-            # 生成随机密码和 access key
-            admin_password = generate_secure_string(16)
-            admin_access_key = generate_secure_string(32)
-            
-            # 创建管理员用户
-            admin = User(
-                username='admin',
-                password=bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),  # 转换为字符串
-                access_key=admin_access_key
-            )
-            db.session.add(admin)
-            
-            # 保存凭据到文件
-            with open('admin.key', 'w') as f:
-                f.write(f"Admin Credentials (generated at {datetime.now().isoformat()})\n")
-                f.write("-" * 50 + "\n")
-                f.write(f"Username: admin\n")
-                f.write(f"Password: {admin_password}\n")
-                f.write(f"Access Key: {admin_access_key}\n")
-            
-            print("管理员账户创建完成，凭据已保存到 admin.key 文件")
+            # 检查是否已存在管理员账户
+            if User.query.filter_by(username='admin').first() is None:
+                print("创建管理员账户...")
+                # 生成随机密码和 access key
+                admin_password = generate_secure_string(16)
+                admin_access_key = generate_secure_string(32)
+                
+                # 创建管理员用户
+                admin = User(
+                    username='admin',
+                    password=bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
+                    access_key=admin_access_key
+                )
+                db.session.add(admin)
+                
+                # 保存凭据到文件
+                with open('admin.key', 'w') as f:
+                    f.write(f"Admin Credentials (generated at {datetime.now().isoformat()})\n")
+                    f.write("-" * 50 + "\n")
+                    f.write(f"Username: admin\n")
+                    f.write(f"Password: {admin_password}\n")
+                    f.write(f"Access Key: {admin_access_key}\n")
+                
+                print("管理员账户创建完成，凭据已保存到 admin.key 文件")
 
-            # 添加测试消息
-            message = Message(
-                content='<h1>欢迎使用留言板！</h1><p>这是一条测试消息。</p>',
-                author=admin
-            )
-            db.session.add(message)
+                # 添加测试消息
+                message = Message(
+                    content='<h1>欢迎使用留言板！</h1><p>这是一条测试消息。</p>',
+                    author=admin
+                )
+                db.session.add(message)
             
             db.session.commit()
             print("初始化数据完成")
